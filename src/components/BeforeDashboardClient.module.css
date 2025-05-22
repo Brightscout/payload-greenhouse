@@ -1,0 +1,156 @@
+.greenhouseDashboard {
+  display: flex;
+  flex-direction: column;
+  padding: 1rem;
+  background-color: #f7f7f7;
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  margin-bottom: 2rem;
+}
+
+.greenhouseDashboardHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.5rem;
+}
+
+.greenhouseDashboardHeader h1 {
+  font-size: 1.5rem;
+  margin: 0;
+}
+
+.greenhouseDashboardStats {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 1rem;
+  margin-bottom: 2rem;
+}
+
+.statCard {
+  background-color: white;
+  border-radius: 8px;
+  padding: 1rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  text-align: center;
+}
+
+.statCard h3 {
+  margin: 0 0 0.5rem;
+  font-size: 0.9rem;
+  color: var(--theme-elevation-500);
+  font-weight: 500;
+}
+
+.statCard p {
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: var(--theme-elevation-800);
+}
+
+.greenhouseDashboardRecent {
+  background-color: white;
+  border-radius: 8px;
+  padding: 1rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  margin-bottom: 2rem;
+}
+
+.greenhouseDashboardRecent h3 {
+  margin-top: 0;
+  margin-bottom: 1rem;
+  font-size: 1.1rem;
+}
+
+.tableContainer {
+  overflow-x: auto;
+}
+
+.tableContainer table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+.tableContainer th {
+  text-align: left;
+  padding: 0.75rem;
+  border-bottom: 1px solid var(--theme-elevation-200);
+  color: var(--theme-elevation-500);
+  font-weight: 500;
+}
+
+.tableContainer td {
+  padding: 0.75rem;
+  border-bottom: 1px solid var(--theme-elevation-100);
+}
+
+.refreshButton {
+  background-color: var(--theme-success-500);
+  color: white;
+  border: none;
+  border-radius: 4px;
+  padding: 0.5rem 1rem;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.refreshButton:hover {
+  background-color: var(--theme-success-600);
+}
+
+.refreshButton:disabled {
+  background-color: var(--theme-elevation-300);
+  cursor: not-allowed;
+}
+
+.loadingSpinner {
+  border: 3px solid var(--theme-elevation-100);
+  border-radius: 50%;
+  border-top: 3px solid var(--theme-success-500);
+  width: 20px;
+  height: 20px;
+  animation: spin 1s linear infinite;
+  margin: 0 auto 1rem;
+}
+
+.greenhouseHelp {
+  background-color: white;
+  border-radius: 8px;
+  padding: 1rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.greenhouseHelp h3 {
+  margin-top: 0;
+  margin-bottom: 1rem;
+  font-size: 1.1rem;
+}
+
+.greenhouseHelp p {
+  margin-bottom: 1rem;
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.greenhouseHelp ul {
+  margin: 0;
+  padding-left: 1.5rem;
+}
+
+.greenhouseHelp li {
+  margin-bottom: 0.5rem;
+  font-size: 0.9rem;
+}
+
+@keyframes spin {
+  0% {
+    transform: rotate(0deg);
+  }
+
+  100% {
+    transform: rotate(360deg);
+  }
+}
