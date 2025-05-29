@@ -13,48 +13,57 @@ type GreenhouseJob = {
   updatedAt: string
 }
 
-type BeforeDashboardClientProps = {
-  jobs: GreenhouseJob[]
+type GreenhouseSettings = {
+  apiKey?: string
+  boardType?: string
+  cacheExpiryTime?: number
+  debug?: boolean
+  formType?: string
+  urlToken?: string
 }
 
-export const BeforeDashboardClient = ({ jobs: initialJobs }: BeforeDashboardClientProps) => {
-  const [loading, setLoading] = useState(false)
-  const [refreshing, setRefreshing] = useState(false)
-  const [jobs, setJobs] = useState<GreenhouseJob[]>(initialJobs || [])
+type BeforeDashboardClientProps = {
+  jobs: GreenhouseJob[]
+  settings?: GreenhouseSettings
+}
 
-  if (!jobs || !Array.isArray(jobs)) {
+export const BeforeDashboardClient = ({
+  jobs: initialJobs,
+  settings,
+}: BeforeDashboardClientProps) => {
+  console.log('initialJobs', initialJobs)
+  const [loading, setLoading] = useState(false)
+
+  if (!initialJobs || !Array.isArray(initialJobs)) {
     return <div>No Greenhouse jobs available</div>
   }
 
-  // Count unique departments and locations
-  const departments = new Set(jobs.map((job) => job.department).filter(Boolean))
-  const locations = new Set(jobs.map((job) => job.location).filter(Boolean))
-  const offices = new Set(jobs.map((job) => job.office).filter(Boolean))
+  // Calculate statistics using initialJobs
+  const departments = new Set(initialJobs.map((job) => job.department).filter(Boolean))
+  const locations = new Set(initialJobs.map((job) => job.location).filter(Boolean))
+  const offices = new Set(initialJobs.map((job) => job.office).filter(Boolean))
 
-  const refreshCache = async () => {
-    setRefreshing(true)
+  const refreshJobs = async () => {
     try {
-      const response = await fetch('/api/greenhouse/clear-cache', {
-        method: 'POST',
-      })
+      setLoading(true)
 
-      if (!response.ok) {
+      // Clear cache first
+      const clearResponse = await fetch('/api/greenhouse/clear-cache', { method: 'POST' })
+      if (!clearResponse.ok) {
         throw new Error('Failed to clear cache')
       }
 
-      // Fetch updated jobs
-      const jobsResponse = await fetch('/api/greenhouse/jobs?refresh=true')
-
-      if (!jobsResponse.ok) {
-        throw new Error('Failed to fetch updated jobs')
+      // Trigger a fresh sync by calling the jobs endpoint
+      const syncResponse = await fetch('/api/greenhouse/jobs?refresh=true')
+      if (!syncResponse.ok) {
+        throw new Error('Failed to sync jobs')
       }
 
-      const updatedJobs = await jobsResponse.json()
-      setJobs(updatedJobs)
+      // Reload the page to show updated data since we're fetching from collection
+      window.location.reload()
     } catch (error) {
-      console.error('Error refreshing cache:', error)
-    } finally {
-      setRefreshing(false)
+      console.error('Error refreshing jobs:', error)
+      setLoading(false)
     }
   }
 
@@ -69,22 +78,42 @@ export const BeforeDashboardClient = ({ jobs: initialJobs }: BeforeDashboardClie
 
   return (
     <div className="gutter--left gutter--right collection-list__wrap">
+      {/* Configuration Status */}
       <div className={styles.greenhouseDashboardHeader}>
-        <h1>Greenhouse Job Board</h1>
+        <h1>Greenhouse Job Board Dashboard</h1>
         <button
           className={styles.refreshButton}
-          disabled={refreshing}
-          onClick={refreshCache}
+          disabled={loading}
+          onClick={refreshJobs}
           type="button"
         >
-          {refreshing ? 'Refreshing...' : 'Refresh Job Cache'}
+          {loading ? 'Refreshing...' : 'Refresh Jobs'}
         </button>
       </div>
 
+      {/* Configuration Status Alert */}
+      {(!settings?.urlToken || !settings?.apiKey) && (
+        <div className={styles.errorMessage}>
+          <h3>
+            <span aria-label="Warning" role="img">
+              ⚠️
+            </span>{' '}
+            Configuration Required
+          </h3>
+          <p>
+            Please configure your Greenhouse settings via environment variables to enable full
+            functionality.
+            {!settings?.urlToken && ' GREENHOUSE_URL_TOKEN is required.'}
+            {!settings?.apiKey && ' GREENHOUSE_API_KEY is required for inline forms.'}
+          </p>
+        </div>
+      )}
+
+      {/* Job Statistics */}
       <div className={styles.greenhouseDashboardStats}>
         <div className={styles.statCard}>
           <h3>Total Jobs</h3>
-          <p>{jobs.length}</p>
+          <p>{initialJobs.length}</p>
         </div>
         <div className={styles.statCard}>
           <h3>Departments</h3>
@@ -98,51 +127,6 @@ export const BeforeDashboardClient = ({ jobs: initialJobs }: BeforeDashboardClie
           <h3>Offices</h3>
           <p>{offices.size}</p>
         </div>
-      </div>
-
-      <div className={styles.greenhouseDashboardRecent}>
-        <h3>Recent Jobs</h3>
-        <div className={styles.tableContainer}>
-          <table>
-            <thead>
-              <tr>
-                <th>Job Title</th>
-                <th>Department</th>
-                <th>Location</th>
-                <th>Office</th>
-                <th>Last Updated</th>
-              </tr>
-            </thead>
-            <tbody>
-              {jobs.slice(0, 10).map((job) => (
-                <tr key={job.id}>
-                  <td>{job.title}</td>
-                  <td>{job.department || '-'}</td>
-                  <td>{job.location || '-'}</td>
-                  <td>{job.office || '-'}</td>
-                  <td>{new Date(job.updatedAt).toLocaleDateString()}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      <div className={styles.greenhouseHelp}>
-        <h3>How to Use</h3>
-        <p>
-          This plugin connects your Payload CMS with Greenhouse Applicant Tracking System. The job
-          board can be displayed on your website using the Greenhouse Job Board component.
-        </p>
-        <p>
-          <strong>Key Features:</strong>
-        </p>
-        <ul>
-          <li>Auto-sync jobs from Greenhouse</li>
-          <li>Display jobs in accordion or cycle layout</li>
-          <li>Support for both iframe and inline application forms</li>
-          <li>Customizable labels and styling</li>
-        </ul>
       </div>
     </div>
   )

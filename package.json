@@ -1,6 +1,6 @@
 {
   "name": "payload-greenhouse",
-  "version": "1.0.3",
+  "version": "1.0.0",
   "description": "A PayloadCMS plugin for Greenhouse integration - view and manage Greenhouse jobs directly in your Payload admin dashboard",
   "license": "MIT",
   "type": "module",

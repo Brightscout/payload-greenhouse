@@ -1,5 +1,5 @@
-import { BeforeDashboardServer as BeforeDashboardServer_a0f5dbf4f1a90b805e33b2c2a0a8edf5 } from 'payload-hubspot/rsc'
+import { BeforeDashboardServer as BeforeDashboardServer_b282ae06ef88025dbe9af1ec50cfc431 } from 'payload-greenhouse/rsc'
 
 export const importMap = {
-  "payload-hubspot/rsc#BeforeDashboardServer": BeforeDashboardServer_a0f5dbf4f1a90b805e33b2c2a0a8edf5
+  "payload-greenhouse/rsc#BeforeDashboardServer": BeforeDashboardServer_b282ae06ef88025dbe9af1ec50cfc431
 }

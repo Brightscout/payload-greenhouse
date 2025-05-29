@@ -2,77 +2,74 @@ import type { PayloadRequest } from 'payload'
 
 import { getPluginOptions } from '../index.js'
 import { greenhouseJobsHandler } from '../utils/greenhouseApi.js'
+import { BeforeDashboardClient } from './BeforeDashboardClient.js'
 
-export const BeforeDashboardServer = async () => {
+type GreenhouseJob = {
+  department: string
+  id: string
+  location: string
+  office: string
+  title: string
+  updatedAt: string
+}
+
+type GreenhouseSettings = {
+  apiKey?: string
+  boardType?: string
+  cacheExpiryTime?: number
+  debug?: boolean
+  formType?: string
+  urlToken?: string
+}
+
+export const BeforeDashboardServer = async (props?: any) => {
   const pluginOptions = getPluginOptions()
 
   if (!pluginOptions) {
     console.error('Plugin options not available')
-    return <div>Greenhouse integration not properly configured</div>
+    return <BeforeDashboardClient jobs={[]} settings={undefined} />
   }
 
   try {
-    const response = await greenhouseJobsHandler({ query: {} } as PayloadRequest, pluginOptions)
-    const jobs = await response.json()
+    let jobs: GreenhouseJob[] = []
+    let settings: GreenhouseSettings | undefined = undefined
 
-    // Get settings from response or use defaults
-    const settings = {
-      apiKey: pluginOptions.apiKey ? '✅ Configured' : '❌ Missing',
-      boardType: pluginOptions.boardType || 'accordion',
-      formType: pluginOptions.formType || 'iframe',
-      urlToken: pluginOptions.urlToken || '',
+    // Get settings from plugin options and environment variables
+    settings = {
+      apiKey: pluginOptions.apiKey || process.env.GREENHOUSE_API_KEY,
+      boardType: pluginOptions.boardType,
+      cacheExpiryTime: pluginOptions.cacheExpiryTime,
+      debug: pluginOptions.debug,
+      formType: pluginOptions.formType,
+      urlToken: pluginOptions.urlToken || process.env.GREENHOUSE_URL_TOKEN,
     }
 
-    return (
-      <div className="greenhouse-admin-container">
-        <h1>Greenhouse Job Board</h1>
+    // Call the API handler directly (same pattern as HubSpot plugin)
+    try {
+      const response = await greenhouseJobsHandler({ query: {} } as PayloadRequest, pluginOptions)
+      const jobsData = await response.json()
 
-        <div className="greenhouse-admin-status">
-          <div className="greenhouse-admin-status-item">
-            <strong>URL Token:</strong> {settings.urlToken ? '✅ Configured' : '❌ Missing'}
-          </div>
-          <div className="greenhouse-admin-status-item">
-            <strong>API Key:</strong> {settings.apiKey}
-          </div>
-          <div className="greenhouse-admin-status-item">
-            <strong>Jobs Cached:</strong> {jobs.length || 0}
-          </div>
-          <div className="greenhouse-admin-status-item">
-            <strong>Board Type:</strong> {settings.boardType}
-          </div>
-        </div>
+      console.log('Jobs fetched via handler:', jobsData?.length || 0)
 
-        {jobs.length > 0 ? (
-          <div className="greenhouse-admin-recent">
-            <h3>Recent Jobs</h3>
-            <table className="greenhouse-admin-table">
-              <thead>
-                <tr>
-                  <th>Job Title</th>
-                  <th>Department</th>
-                  <th>Location</th>
-                </tr>
-              </thead>
-              <tbody>
-                {jobs.slice(0, 5).map((job: any) => (
-                  <tr key={job.id}>
-                    <td>{job.title}</td>
-                    <td>{job.department || '-'}</td>
-                    <td>{job.location || '-'}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        ) : (
-          <div className="greenhouse-admin-empty">
-            No jobs found. Please check your Greenhouse configuration or refresh the cache.
-          </div>
-        )}
-      </div>
-    )
+      // Transform the jobs data to match the expected format
+      jobs = (jobsData || []).map((job: any) => ({
+        id: job.id || job.jobId,
+        department: job.department || '',
+        location: job.location || '',
+        office: job.office || '',
+        title: job.title || '',
+        updatedAt: job.updatedAt || '',
+      }))
+
+      console.log('Transformed jobs for dashboard:', jobs.length)
+    } catch (error) {
+      console.error('Error fetching jobs via handler:', error)
+      jobs = []
+    }
+
+    return <BeforeDashboardClient jobs={jobs} settings={settings} />
   } catch (err) {
-    console.error('Error fetching Greenhouse jobs:', err)
-    return <div>Failed to load Greenhouse jobs</div>
+    console.error('Error in Greenhouse dashboard:', err)
+    return <BeforeDashboardClient jobs={[]} settings={undefined} />
   }
 }

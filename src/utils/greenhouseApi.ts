@@ -24,17 +24,56 @@ type GreenhouseSettings = {
   urlToken?: string
 }
 
-type GreenhouseJob = {
-  content: string
-  departments?: Array<{ id: number; name: string }>
+type GreenhouseOffice = {
+  child_ids: number[]
+  departments: GreenhouseDepartment[]
   id: number
+  location: null | string
+  name: string
+  parent_id: null | number
+}
+
+type GreenhouseDepartment = {
+  child_ids: number[]
+  id: number
+  jobs: GreenhouseJob[]
+  name: string
+  parent_id: null | number
+}
+
+type GreenhouseJob = {
+  absolute_url: string
+  company_name: string
+  content?: string
+  data_compliance: Array<{
+    demographic_data_consent_applies: boolean
+    requires_consent: boolean
+    requires_processing_consent: boolean
+    requires_retention_consent: boolean
+    retention_period: null | number
+    type: string
+  }>
+  first_published: string
+  id: number
+  internal_job_id: number
   location?: { name: string }
-  offices?: Array<{ id: number; name: string }>
+  metadata: any
+  requisition_id: string
   title: string
+  updated_at: string
 }
 
 type GreenhouseJobDetails = {
   questions?: any[]
+}
+
+// Helper function to get settings from plugin options or environment variables
+const getGreenhouseSettings = (pluginOptions: PayloadGreenhouseConfig): GreenhouseSettings => {
+  return {
+    apiKey: pluginOptions.apiKey || process.env.GREENHOUSE_API_KEY,
+    cacheExpiryTime: pluginOptions.cacheExpiryTime || 3600,
+    urlToken: pluginOptions.urlToken || process.env.GREENHOUSE_URL_TOKEN,
+  }
 }
 
 // Handler for fetching jobs from Greenhouse
@@ -45,131 +84,100 @@ export const greenhouseJobsHandler = async (
   try {
     const payload = req.payload
 
-    // Get settings
-    const settingsQuery = await payload.find({
-      collection: 'greenhouse-settings' as any,
-      limit: 1,
-    })
-
-    const settings = settingsQuery.docs[0] as unknown as GreenhouseSettings
+    // Get settings from plugin options instead of global
+    const settings = getGreenhouseSettings(pluginOptions)
 
     if (!settings || !settings.urlToken) {
       return new Response(
         JSON.stringify({
-          error: 'Greenhouse URL token is required. Please configure the plugin settings.',
+          error:
+            'Greenhouse URL token is required. Please set GREENHOUSE_URL_TOKEN environment variable.',
         }),
         { headers: { 'Content-Type': 'application/json' }, status: 400 },
       )
     }
 
-    // Check cache first
-    const cachedJobsQuery = await payload.find({
-      collection: 'greenhouse-jobs' as any,
-      limit: 1000,
-    })
-
-    const cacheTime = settings.cacheExpiryTime || pluginOptions.cacheExpiryTime || 3600
-    const lastUpdated =
-      cachedJobsQuery.docs.length > 0 ? new Date(cachedJobsQuery.docs[0].updatedAt).getTime() : 0
-    const now = new Date().getTime()
-    const cacheExpired = now - lastUpdated > cacheTime * 1000
-
     // Check for refresh parameter in the URL if available
     const url = req.url || ''
     const forceRefresh = url.includes('refresh=true')
 
-    // Return cached jobs if cache not expired and not forcing refresh
-    if (cachedJobsQuery.docs.length > 0 && !cacheExpired && !forceRefresh) {
-      return new Response(JSON.stringify(cachedJobsQuery.docs), {
-        headers: { 'Content-Type': 'application/json' },
-        status: 200,
-      })
-    }
+    // Fetch from Greenhouse API - use offices endpoint as primary source
+    const officesResponse = await fetch(
+      `https://boards-api.greenhouse.io/v1/boards/${settings.urlToken}/offices`,
+    )
 
-    // Fetch from Greenhouse API
-    const response = await fetch(`https://api.greenhouse.io/v1/boards/${settings.urlToken}/jobs`)
-
-    if (!response.ok) {
-      const errorMessage = `Greenhouse API error: ${response.status} - ${response.statusText}`
+    if (!officesResponse.ok) {
+      const errorMessage = `Greenhouse API error: ${officesResponse.status} - ${officesResponse.statusText}`
       console.error(errorMessage)
       return new Response(JSON.stringify({ error: errorMessage }), {
         headers: { 'Content-Type': 'application/json' },
-        status: response.status,
+        status: officesResponse.status,
       })
     }
 
-    const greenhouseData = await response.json()
+    const officesData = await officesResponse.json()
+    const offices = officesData.offices || ([] as GreenhouseOffice[])
 
-    // Clear existing cache
-    if (cachedJobsQuery.docs.length > 0) {
-      for (const job of cachedJobsQuery.docs) {
-        await payload.delete({
-          id: job.id,
-          collection: 'greenhouse-jobs' as any,
-        })
+    // Extract all jobs from all offices and departments
+    const allJobs: Array<{
+      department: GreenhouseDepartment
+      job: GreenhouseJob
+      office: GreenhouseOffice
+    }> = []
+    const seenJobIds = new Set<number>()
+
+    for (const office of offices) {
+      if (office.departments && office.departments.length > 0) {
+        for (const department of office.departments) {
+          if (department.jobs && department.jobs.length > 0) {
+            for (const job of department.jobs) {
+              // Only add job if we haven't seen this job ID before
+              if (!seenJobIds.has(job.id)) {
+                seenJobIds.add(job.id)
+                allJobs.push({ department, job, office })
+              }
+            }
+          }
+        }
       }
     }
 
-    // Store jobs in collection
-    const jobs = greenhouseData.jobs || ([] as GreenhouseJob[])
-
-    // Fetch all job details in parallel
-    const jobDetailsPromises = jobs.map(async (job: GreenhouseJob) => {
-      try {
-        const jobDetailsResponse = await fetch(
-          `https://api.greenhouse.io/v1/boards/${settings.urlToken}/jobs/${job.id}`,
-        )
-
-        if (!jobDetailsResponse.ok) {
-          console.error(
-            `Failed to fetch details for job ${job.id}: ${jobDetailsResponse.status} - ${jobDetailsResponse.statusText}`,
-          )
-          return null
-        }
-
-        const jobDetails = (await jobDetailsResponse.json()) as GreenhouseJobDetails
-        return {
-          details: jobDetails,
-          job,
-        }
-      } catch (error) {
-        console.error(`Error fetching details for job ${job.id}:`, error)
-        return null
-      }
-    })
-
-    const jobDetailsResults = await Promise.all(jobDetailsPromises)
+    // Process jobs data
     const processedJobs = []
+    for (const { department, job, office } of allJobs) {
+      // Fetch detailed job info including questions
+      const jobDetailsResponse = await fetch(
+        `https://boards-api.greenhouse.io/v1/boards/${settings.urlToken}/jobs/${job.id}`,
+      )
 
-    // Process job results
-    for (const result of jobDetailsResults) {
-      if (!result) {
-        continue
+      let jobDetails: GreenhouseJobDetails = {}
+      if (jobDetailsResponse.ok) {
+        jobDetails = await jobDetailsResponse.json()
       }
 
-      const { details, job } = result
+      console.log('jobDetails', jobDetails)
 
-      try {
-        const createdJob = await payload.create({
-          collection: 'greenhouse-jobs' as any,
-          data: {
-            slug: job.title.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
-            content: job.content,
-            department: job.departments?.[0]?.name || '',
-            departmentId: job.departments?.[0]?.id || null,
-            jobId: job.id,
-            location: job.location?.name || '',
-            office: job.offices?.[0]?.name || '',
-            officeId: job.offices?.[0]?.id || null,
-            questions: details.questions || [],
-            title: job.title,
-          },
-        })
-
-        processedJobs.push(createdJob)
-      } catch (jobError) {
-        console.error(`Error processing job ${job.id}:`, jobError)
-      }
+      processedJobs.push({
+        id: job.id,
+        slug: job.title.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
+        absoluteUrl: job.absolute_url,
+        companyName: job.company_name,
+        content: job.content || '',
+        dataCompliance: job.data_compliance || [],
+        department: department.name,
+        departmentId: department.id,
+        firstPublished: job.first_published,
+        internalJobId: job.internal_job_id,
+        jobId: job.id,
+        location: job.location?.name || '',
+        metadata: job.metadata,
+        office: office.name,
+        officeId: office.id,
+        questions: jobDetails.questions || [],
+        requisitionId: job.requisition_id,
+        title: job.title,
+        updatedAt: job.updated_at,
+      })
     }
 
     return new Response(JSON.stringify(processedJobs), {
@@ -200,18 +208,14 @@ export const greenhouseApplyHandler = async (
   try {
     const payload = req.payload
 
-    // Get settings
-    const settingsQuery = await payload.find({
-      collection: 'greenhouse-settings' as any,
-      limit: 1,
-    })
-
-    const settings = settingsQuery.docs[0] as unknown as GreenhouseSettings
+    // Get settings from plugin options instead of global
+    const settings = getGreenhouseSettings(pluginOptions)
 
     if (!settings || !settings.apiKey) {
       return new Response(
         JSON.stringify({
-          error: 'Greenhouse API key is required for application submissions.',
+          error:
+            'Greenhouse API key is required for application submissions. Please set GREENHOUSE_API_KEY environment variable.',
         }),
         { headers: { 'Content-Type': 'application/json' }, status: 400 },
       )
@@ -284,46 +288,36 @@ export const greenhouseApplyHandler = async (
 }
 
 // Handler for clearing the job cache
-export const greenhouseClearCacheHandler = async (req: PayloadRequest): Promise<Response> => {
+export const greenhouseClearCacheHandler = (req: PayloadRequest): Promise<Response> => {
   try {
-    const payload = req.payload
-
-    const cachedJobsQuery = await payload.find({
-      collection: 'greenhouse-jobs' as any,
-      limit: 1000,
-    })
-
-    if (cachedJobsQuery.docs.length > 0) {
-      for (const job of cachedJobsQuery.docs) {
-        await payload.delete({
-          id: job.id,
-          collection: 'greenhouse-jobs' as any,
-        })
-      }
-    }
-
-    return new Response(
-      JSON.stringify({
-        jobsRemoved: cachedJobsQuery.docs.length,
-        message: 'Cache cleared successfully',
-      }),
-      {
-        headers: { 'Content-Type': 'application/json' },
-        status: 200,
-      },
+    // Since we're not using global settings for caching, this handler
+    // could clear any alternative cache you implement, or simply return success
+    return Promise.resolve(
+      new Response(
+        JSON.stringify({
+          jobsRemoved: 0,
+          message: 'Cache clearing not implemented for environment variable configuration',
+        }),
+        {
+          headers: { 'Content-Type': 'application/json' },
+          status: 200,
+        },
+      ),
     )
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred'
     console.error('Error clearing Greenhouse cache:', error)
-    return new Response(
-      JSON.stringify({
-        error: errorMessage,
-        message: 'Failed to clear job cache. Please try again later.',
-      }),
-      {
-        headers: { 'Content-Type': 'application/json' },
-        status: 500,
-      },
+    return Promise.resolve(
+      new Response(
+        JSON.stringify({
+          error: errorMessage,
+          message: 'Failed to clear job cache. Please try again later.',
+        }),
+        {
+          headers: { 'Content-Type': 'application/json' },
+          status: 500,
+        },
+      ),
     )
   }
 }
