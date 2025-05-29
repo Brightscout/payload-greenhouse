@@ -5,10 +5,14 @@ import React, { useState } from 'react'
 import styles from './BeforeDashboardClient.module.css'
 
 type GreenhouseJob = {
+  absoluteUrl?: string
   department: string
   id: string
+  jobId?: number
   location: string
   office: string
+  requisitionId?: string
+  status?: string
   title: string
   updatedAt: string
 }
@@ -31,8 +35,8 @@ export const BeforeDashboardClient = ({
   jobs: initialJobs,
   settings,
 }: BeforeDashboardClientProps) => {
-  console.log('initialJobs', initialJobs)
   const [loading, setLoading] = useState(false)
+  const [copiedId, setCopiedId] = useState<null | string>(null)
 
   if (!initialJobs || !Array.isArray(initialJobs)) {
     return <div>No Greenhouse jobs available</div>
@@ -42,6 +46,12 @@ export const BeforeDashboardClient = ({
   const departments = new Set(initialJobs.map((job) => job.department).filter(Boolean))
   const locations = new Set(initialJobs.map((job) => job.location).filter(Boolean))
   const offices = new Set(initialJobs.map((job) => job.office).filter(Boolean))
+
+  const copyToClipboard = (text: string) => {
+    void navigator.clipboard.writeText(text)
+    setCopiedId(text)
+    setTimeout(() => setCopiedId(null), 2000)
+  }
 
   const refreshJobs = async () => {
     try {
@@ -126,6 +136,122 @@ export const BeforeDashboardClient = ({
         <div className={styles.statCard}>
           <h3>Offices</h3>
           <p>{offices.size}</p>
+        </div>
+      </div>
+
+      {/* All Available Jobs Table */}
+      <div className={styles.greenhouseDashboardRecent}>
+        <h3>All Available Jobs</h3>
+        <div className={styles.tableContainer}>
+          <table>
+            <thead>
+              <tr>
+                <th>Job Title</th>
+                <th>Job ID</th>
+                <th>Department</th>
+                <th>Location</th>
+                <th>Office</th>
+                <th>Status</th>
+                <th>Last Updated</th>
+              </tr>
+            </thead>
+            <tbody>
+              {initialJobs
+                .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
+                .map((job) => (
+                  <tr key={job.id}>
+                    <td>
+                      <strong>{job.title}</strong>
+                      {job.absoluteUrl && (
+                        <div
+                          style={{
+                            color: 'var(--theme-elevation-500)',
+                            fontSize: '0.75rem',
+                            marginTop: '0.25rem',
+                          }}
+                        >
+                          <a
+                            href={job.absoluteUrl}
+                            rel="noopener noreferrer"
+                            style={{ color: 'var(--theme-elevation-500)', textDecoration: 'none' }}
+                            target="_blank"
+                          >
+                            View Application →
+                          </a>
+                        </div>
+                      )}
+                    </td>
+                    <td>
+                      <div className={styles.copyContainer}>
+                        {job.jobId || job.id}
+                        <button
+                          className={styles.copyButton}
+                          onClick={() => copyToClipboard(String(job.jobId || job.id))}
+                          title="Copy to clipboard"
+                          type="button"
+                        >
+                          {copiedId === String(job.jobId || job.id) ? (
+                            <svg
+                              fill="none"
+                              height="16"
+                              stroke="currentColor"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth="2"
+                              viewBox="0 0 24 24"
+                              width="16"
+                              xmlns="http://www.w3.org/2000/svg"
+                            >
+                              <polyline points="20 6 9 17 4 12"></polyline>
+                            </svg>
+                          ) : (
+                            <svg
+                              fill="none"
+                              height="16"
+                              stroke="currentColor"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth="2"
+                              viewBox="0 0 24 24"
+                              width="16"
+                              xmlns="http://www.w3.org/2000/svg"
+                            >
+                              <rect height="13" rx="2" ry="2" width="13" x="9" y="9"></rect>
+                              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2 2v1"></path>
+                            </svg>
+                          )}
+                        </button>
+                      </div>
+                    </td>
+                    <td>{job.department}</td>
+                    <td>{job.location}</td>
+                    <td>{job.office}</td>
+                    <td>
+                      <span
+                        className={`${styles.statusBadge} ${
+                          job.status === 'active'
+                            ? styles.active
+                            : job.status === 'draft'
+                              ? styles.draft
+                              : job.status === 'closed'
+                                ? styles.closed
+                                : job.status === 'on-hold'
+                                  ? styles.onHold
+                                  : styles.active
+                        }`}
+                      >
+                        {job.status === 'on-hold'
+                          ? 'On Hold'
+                          : job.status
+                            ? job.status.charAt(0).toUpperCase() + job.status.slice(1)
+                            : 'Active'}
+                      </span>
+                    </td>
+                    <td>{job.updatedAt ? new Date(job.updatedAt).toLocaleDateString() : 'N/A'}</td>
+                  </tr>
+                ))}
+            </tbody>
+          </table>
         </div>
       </div>
     </div>

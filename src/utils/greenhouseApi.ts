@@ -155,8 +155,6 @@ export const greenhouseJobsHandler = async (
         jobDetails = await jobDetailsResponse.json()
       }
 
-      console.log('jobDetails', jobDetails)
-
       processedJobs.push({
         id: job.id,
         slug: job.title.toLowerCase().replace(/[^a-z0-9]+/g, '-'),

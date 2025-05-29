@@ -5,10 +5,14 @@ import { greenhouseJobsHandler } from '../utils/greenhouseApi.js'
 import { BeforeDashboardClient } from './BeforeDashboardClient.js'
 
 type GreenhouseJob = {
+  absoluteUrl?: string
   department: string
   id: string
+  jobId?: number
   location: string
   office: string
+  requisitionId?: string
+  status?: string
   title: string
   updatedAt: string
 }
@@ -49,19 +53,19 @@ export const BeforeDashboardServer = async (props?: any) => {
       const response = await greenhouseJobsHandler({ query: {} } as PayloadRequest, pluginOptions)
       const jobsData = await response.json()
 
-      console.log('Jobs fetched via handler:', jobsData?.length || 0)
-
-      // Transform the jobs data to match the expected format
+      // Transform the jobs data to match the expected format with more details
       jobs = (jobsData || []).map((job: any) => ({
-        id: job.id || job.jobId,
+        id: String(job.id || job.jobId),
+        absoluteUrl: job.absoluteUrl || '',
         department: job.department || '',
+        jobId: job.jobId || job.id,
         location: job.location || '',
         office: job.office || '',
+        requisitionId: job.requisitionId || '',
+        status: job.status || 'active',
         title: job.title || '',
         updatedAt: job.updatedAt || '',
       }))
-
-      console.log('Transformed jobs for dashboard:', jobs.length)
     } catch (error) {
       console.error('Error fetching jobs via handler:', error)
       jobs = []
