@@ -20,12 +20,12 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/gridig/payload-greenhouse"
+    "url": "https://github.com/Brightscout/payload-greenhouse"
   },
   "bugs": {
-    "url": "https://github.com/gridig/payload-greenhouse/issues"
+    "url": "https://github.com/Brightscout/payload-greenhouse/issues"
   },
-  "homepage": "https://github.com/gridig/payload-greenhouse#readme",
+  "homepage": "https://github.com/Brightscout/payload-greenhouse#readme",
   "exports": {
     ".": {
       "import": "./dist/index.js",

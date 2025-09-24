@@ -328,7 +328,7 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 
 ## 📞 Support
 
-- **GitHub Issues**: [Create an issue](https://github.com/gridig/payload-greenhouse/issues)
+- **GitHub Issues**: [Create an issue](https://github.com/Brightscout/payload-greenhouse/issues)
 - **Documentation**: Check this README and inline code comments
 - **Community**: Join the PayloadCMS Discord community
 
